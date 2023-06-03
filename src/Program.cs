@@ -1,11 +1,18 @@
 ﻿namespace OpcPlc;
 
+using Kusto.Cloud.Platform.Utils;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Opc.Ua;
 using OpcPlc.Helpers;
 using OpcPlc.PluginNodes.Models;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using Serilog;
+using Serilog.Sinks.AzureDataExplorer;
+using Serilog.Sinks.AzureDataExplorer.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -104,12 +111,21 @@ public static class Program
 
     public static string PnJson = "pn.json";
 
+    public static Metrics Meters { get; private set; }
+
     /// <summary>
     /// Logging configuration.
     /// </summary>
     public static string LogFileName = $"{Dns.GetHostName().Split('.')[0].ToLowerInvariant()}-plc.log";
     public static string LogLevel = "info";
+    public static string LogLevelForOPCUAServer = "";
     public static TimeSpan LogFileFlushTimeSpanSec = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Log to ADX or not
+    /// We need to specify ADX instance endpoint, database, tablename and secret if this is set to true
+    /// </summary>
+    public static bool LogToADX = false;
 
     public enum NodeType
     {
@@ -170,11 +186,7 @@ public static class Program
         Logger.Debug("Informational version: {version}",
             $"v{(Attribute.GetCustomAttribute(Assembly.GetEntryAssembly(), typeof(AssemblyInformationalVersionAttribute)) as AssemblyInformationalVersionAttribute)?.InformationalVersion}");
 
-        using var host = CreateHostBuilder(args);
-        if (ShowPublisherConfigJsonIp || ShowPublisherConfigJsonPh)
-        {
-            StartWebServer(host);
-        }
+        StartWebServer(args);
 
         try
         {
@@ -202,24 +214,6 @@ public static class Program
             .Select(t => Activator.CreateInstance(t))
             .Cast<IPluginNodes>()
             .ToImmutableList();
-    }
-
-    /// <summary>
-    /// Start web server to host pn.json.
-    /// </summary>
-    private static void StartWebServer(IHost host)
-    {
-        try
-        {
-            host.Start();
-            Logger.Information("Web server started on port {webServerPort}", WebServerPort);
-        }
-        catch (Exception e)
-        {
-            Logger.Error("Could not start web server on port {webServerPort}: {message}",
-                WebServerPort,
-                e.Message);
-        }
     }
 
     /// <summary>
@@ -324,40 +318,77 @@ public static class Program
     {
         var loggerConfiguration = new LoggerConfiguration();
 
+        // enrich log events with some properties
+        if (!string.IsNullOrWhiteSpace(CLUSTER_NAME))
+        {
+            loggerConfiguration.Enrich.WithProperty("ClusterName", CLUSTER_NAME);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ROLE_NAME))
+        {
+            loggerConfiguration.Enrich.WithProperty("RoleName", ROLE_NAME);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ROLE_INSTANCE))
+        {
+            loggerConfiguration.Enrich.WithProperty("RoleInstance", ROLE_INSTANCE);
+        }
+
+        if (string.IsNullOrWhiteSpace(LogLevelForOPCUAServer))
+        {
+            LogLevelForOPCUAServer = LogLevel;
+        }
+
         // set the log level
         switch (LogLevel)
         {
             case "fatal":
                 loggerConfiguration.MinimumLevel.Fatal();
-                OpcStackTraceMask = OpcTraceToLoggerFatal = 0;
                 break;
             case "error":
                 loggerConfiguration.MinimumLevel.Error();
-                OpcStackTraceMask = OpcTraceToLoggerError = Utils.TraceMasks.Error;
                 break;
             case "warn":
                 loggerConfiguration.MinimumLevel.Warning();
+                break;
+            case "info":
+                loggerConfiguration.MinimumLevel.Information();
+                break;
+            case "debug":
+                loggerConfiguration.MinimumLevel.Debug();
+                break;
+            case "verbose":
+                loggerConfiguration.MinimumLevel.Verbose();
+                break;
+        }
+
+        switch (LogLevelForOPCUAServer)
+        {
+            case "fatal":
+                OpcStackTraceMask = OpcTraceToLoggerFatal = 0;
+                break;
+            case "error":
+                OpcStackTraceMask = OpcTraceToLoggerError = Utils.TraceMasks.Error;
+                break;
+            case "warn":
                 OpcStackTraceMask = OpcTraceToLoggerError = Utils.TraceMasks.Error | Utils.TraceMasks.StackTrace;
                 OpcTraceToLoggerWarning = Utils.TraceMasks.StackTrace;
                 OpcStackTraceMask |= OpcTraceToLoggerWarning;
                 break;
             case "info":
-                loggerConfiguration.MinimumLevel.Information();
                 OpcTraceToLoggerError = Utils.TraceMasks.Error;
                 OpcTraceToLoggerWarning = Utils.TraceMasks.StackTrace;
                 OpcTraceToLoggerInformation = Utils.TraceMasks.Security;
                 OpcStackTraceMask = OpcTraceToLoggerError | OpcTraceToLoggerInformation | OpcTraceToLoggerWarning;
                 break;
             case "debug":
-                loggerConfiguration.MinimumLevel.Debug();
                 OpcTraceToLoggerError = Utils.TraceMasks.Error;
                 OpcTraceToLoggerWarning = Utils.TraceMasks.StackTrace;
                 OpcTraceToLoggerInformation = Utils.TraceMasks.Security;
-                OpcTraceToLoggerDebug = Utils.TraceMasks.Operation | Utils.TraceMasks.StartStop | Utils.TraceMasks.ExternalSystem;
+                OpcTraceToLoggerDebug = Utils.TraceMasks.Operation | Utils.TraceMasks.StartStop | Utils.TraceMasks.ExternalSystem | Utils.TraceMasks.OperationDetail | Utils.TraceMasks.Service | Utils.TraceMasks.ServiceDetail;
                 OpcStackTraceMask = OpcTraceToLoggerError | OpcTraceToLoggerInformation | OpcTraceToLoggerDebug | OpcTraceToLoggerWarning;
                 break;
             case "verbose":
-                loggerConfiguration.MinimumLevel.Verbose();
                 OpcTraceToLoggerError = Utils.TraceMasks.Error | Utils.TraceMasks.StackTrace;
                 OpcTraceToLoggerInformation = Utils.TraceMasks.Security;
                 OpcStackTraceMask = OpcTraceToLoggerVerbose = Utils.TraceMasks.All;
@@ -366,6 +397,39 @@ public static class Program
 
         // set logging sinks
         loggerConfiguration.WriteTo.Console();
+
+        if (LogToADX)
+        {
+            loggerConfiguration.WriteTo.AzureDataExplorerSink(new AzureDataExplorerSinkOptions
+            {
+                IngestionEndpointUri = Environment.GetEnvironmentVariable("ingestionURI"),
+                DatabaseName = Environment.GetEnvironmentVariable("databaseName"),
+                TableName = Environment.GetEnvironmentVariable("tableName"),
+                FlushImmediately = Environment.GetEnvironmentVariable("flushImmediately").IsNotNullOrEmpty() && bool.Parse(Environment.GetEnvironmentVariable("flushImmediately")!),
+                BufferBaseFileName = Environment.GetEnvironmentVariable("bufferBaseFileName"),
+                BatchPostingLimit = 10,
+                Period = TimeSpan.FromSeconds(5),
+
+                ColumnsMapping = new[]
+                    {
+                        new SinkColumnMapping { ColumnName ="Timestamp", ColumnType ="datetime", ValuePath = "$.Timestamp" } ,
+                        new SinkColumnMapping { ColumnName ="Level", ColumnType ="string", ValuePath = "$.Level" } ,
+                        new SinkColumnMapping { ColumnName ="ClusterName", ColumnType ="string", ValuePath = "$.Properties.ClusterName" } ,
+                        new SinkColumnMapping { ColumnName ="RoleName", ColumnType ="string", ValuePath = "$.Properties.RoleName" } ,
+                        new SinkColumnMapping { ColumnName ="RoleInstance", ColumnType ="string", ValuePath = "$.Properties.RoleInstance" } ,
+                        new SinkColumnMapping { ColumnName ="SourceContext", ColumnType ="string", ValuePath = "$.Properties.SourceContext" } ,
+                        new SinkColumnMapping { ColumnName ="Operation", ColumnType ="string", ValuePath = "$.Properties.function" } ,
+                        new SinkColumnMapping { ColumnName ="Message", ColumnType ="string", ValuePath = "$.Message" } ,
+                        new SinkColumnMapping { ColumnName ="Exception", ColumnType ="string", ValuePath = "$.Error" } ,
+                        new SinkColumnMapping { ColumnName ="Properties", ColumnType ="dynamic", ValuePath = "$.Properties" } ,
+                        new SinkColumnMapping { ColumnName ="Position", ColumnType ="dynamic", ValuePath = "$.Properties.Position" } ,
+                        new SinkColumnMapping { ColumnName ="Elapsed", ColumnType ="int", ValuePath = "$.Properties.Elapsed" } ,
+                    }
+            }.WithAadApplicationKey(
+                Environment.GetEnvironmentVariable("appId"),
+                Environment.GetEnvironmentVariable("appKey"),
+                Environment.GetEnvironmentVariable("tenant")));
+        }
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("_GW_LOGP")))
         {
@@ -386,17 +450,76 @@ public static class Program
     /// <summary>
     /// Configure web server.
     /// </summary>
-    public static IHost CreateHostBuilder(string[] args)
+    public static void StartWebServer(string[] args)
     {
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureWebHostDefaults(webBuilder =>
-            {
-                webBuilder.UseContentRoot(Directory.GetCurrentDirectory()); // Avoid System.InvalidOperationException.
-                    webBuilder.UseUrls($"http://*:{WebServerPort}");
-                webBuilder.UseStartup<Startup>();
-            }).Build();
+        try
+        {
+            var builder = WebApplication.CreateBuilder(args);
 
-        return host;
+            var baseDimensions = new Dictionary<string, object>
+            {
+                { "host",       ROLE_INSTANCE ?? "host"     },
+                { "app",        "opc-plc"                   },
+                { "simid",      ROLE_NAME ?? "simulation"   },
+                { "cluster",    CLUSTER_NAME ?? "cluster"   }
+            };
+
+            Meters = new Metrics("metrics", baseDimensions);
+
+            builder.Services.AddControllers();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddAuthorization();
+
+
+            builder.Services
+                .AddOpenTelemetry()
+                .WithMetrics(opts => opts
+                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("opc-plc"))
+                    .AddMeter(Meters.MetricName)
+                    .AddProcessInstrumentation()
+                    .AddRuntimeInstrumentation()
+                    .AddPrometheusExporter()
+                );
+
+            builder.WebHost.UseUrls($"http://*:{WebServerPort}");
+            builder.WebHost.UseContentRoot(Directory.GetCurrentDirectory());
+
+            var app = builder.Build();
+            app.UseOpenTelemetryPrometheusScrapingEndpoint();
+            app.UseAuthorization();
+            app.MapControllers();
+            app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}");
+
+            if (app.Environment.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+            }
+
+            app.RunAsync();
+            /*
+            app.Run(async context =>
+            {
+                if (context.Request.Method == "GET" && context.Request.Path == (Program.PnJson[0] != '/' ? "/" : string.Empty) + Program.PnJson &&
+                    File.Exists(Program.PnJson))
+                {
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(await File.ReadAllTextAsync(Program.PnJson).ConfigureAwait(false)).ConfigureAwait(false);
+                }
+                else
+                {
+
+                    context.Response.StatusCode = 404;
+                }
+            });
+            */
+            Logger.Information("Web server started on port {webServerPort}", WebServerPort);
+        }
+        catch (Exception e)
+        {
+            Logger.Error("Could not start web server on port {webServerPort}: {message}",
+                WebServerPort,
+                e.Message);
+        }
     }
 
     private static void LogLogo()
@@ -411,4 +534,63 @@ public static class Program
  ╚═════╝ ╚═╝      ╚═════╝    ╚═╝     ╚══════╝ ╚═════╝
 ");
     }
+
+    private static string ROLE_INSTANCE
+    {
+        get
+        {
+            try
+            {
+                return System.Environment.MachineName;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
+    private static string ROLE_NAME
+    {
+        get
+        {
+            try
+            {
+                var simulationId = Environment.GetEnvironmentVariable("ROLE_NAME");
+                if (string.IsNullOrEmpty(simulationId))
+                {
+                    return null;
+                }
+
+                return simulationId;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
+    private static string CLUSTER_NAME
+    {
+        get
+        {
+            try
+            {
+                var clusterName = Environment.GetEnvironmentVariable("CLUSTER_NAME");
+
+                if (string.IsNullOrEmpty(clusterName))
+                {
+                    return null;
+                }
+
+                return clusterName;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
 }
