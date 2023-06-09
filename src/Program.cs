@@ -324,14 +324,24 @@ public static class Program
             loggerConfiguration.Enrich.WithProperty("ClusterName", CLUSTER_NAME);
         }
 
-        if (!string.IsNullOrWhiteSpace(ROLE_NAME))
+        if (!string.IsNullOrWhiteSpace(SIMULATION_ID))
         {
-            loggerConfiguration.Enrich.WithProperty("RoleName", ROLE_NAME);
+            loggerConfiguration.Enrich.WithProperty("RoleName", SIMULATION_ID);
+        }
+
+        if (!string.IsNullOrWhiteSpace(KUBERNETES_NODE))
+        {
+            loggerConfiguration.Enrich.WithProperty("Node", KUBERNETES_NODE);
         }
 
         if (!string.IsNullOrWhiteSpace(ROLE_INSTANCE))
         {
             loggerConfiguration.Enrich.WithProperty("RoleInstance", ROLE_INSTANCE);
+        }
+
+        if (!string.IsNullOrWhiteSpace(BUILD_NUMBER))
+        {
+            loggerConfiguration.Enrich.WithProperty("BuildNumber", BUILD_NUMBER);
         }
 
         if (string.IsNullOrWhiteSpace(LogLevelForOPCUAServer))
@@ -416,6 +426,7 @@ public static class Program
                         new SinkColumnMapping { ColumnName ="Level", ColumnType ="string", ValuePath = "$.Level" } ,
                         new SinkColumnMapping { ColumnName ="ClusterName", ColumnType ="string", ValuePath = "$.Properties.ClusterName" } ,
                         new SinkColumnMapping { ColumnName ="RoleName", ColumnType ="string", ValuePath = "$.Properties.RoleName" } ,
+                        new SinkColumnMapping { ColumnName ="Node", ColumnType ="string", ValuePath = "$.Properties.Node" } ,
                         new SinkColumnMapping { ColumnName ="RoleInstance", ColumnType ="string", ValuePath = "$.Properties.RoleInstance" } ,
                         new SinkColumnMapping { ColumnName ="SourceContext", ColumnType ="string", ValuePath = "$.Properties.SourceContext" } ,
                         new SinkColumnMapping { ColumnName ="Operation", ColumnType ="string", ValuePath = "$.Properties.function" } ,
@@ -424,6 +435,7 @@ public static class Program
                         new SinkColumnMapping { ColumnName ="Properties", ColumnType ="dynamic", ValuePath = "$.Properties" } ,
                         new SinkColumnMapping { ColumnName ="Position", ColumnType ="dynamic", ValuePath = "$.Properties.Position" } ,
                         new SinkColumnMapping { ColumnName ="Elapsed", ColumnType ="int", ValuePath = "$.Properties.Elapsed" } ,
+                        new SinkColumnMapping { ColumnName ="BuildNumber", ColumnType ="int", ValuePath = "$.Properties.BuildNumber" } ,
                     }
             }.WithAadApplicationKey(
                 Environment.GetEnvironmentVariable("appId"),
@@ -458,18 +470,19 @@ public static class Program
 
             var baseDimensions = new Dictionary<string, object>
             {
-                { "host",       ROLE_INSTANCE ?? "host"     },
-                { "app",        "opc-plc"                   },
-                { "simid",      ROLE_NAME ?? "simulation"   },
-                { "cluster",    CLUSTER_NAME ?? "cluster"   }
+                { "host",       ROLE_INSTANCE ?? "host"         },
+                { "app",        "opc-plc"                       },
+                { "simid",      SIMULATION_ID ?? "simulation"   },
+                { "cluster",    CLUSTER_NAME ?? "cluster"       },
             };
+
+            Console.WriteLine(baseDimensions.ToJson());
 
             Meters = new Metrics("metrics", baseDimensions);
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddAuthorization();
-
 
             builder.Services
                 .AddOpenTelemetry()
@@ -550,13 +563,13 @@ public static class Program
         }
     }
 
-    private static string ROLE_NAME
+    private static string SIMULATION_ID
     {
         get
         {
             try
             {
-                var simulationId = Environment.GetEnvironmentVariable("ROLE_NAME");
+                var simulationId = Environment.GetEnvironmentVariable("SIMULATION_ID");
                 if (string.IsNullOrEmpty(simulationId))
                 {
                     return null;
@@ -571,13 +584,34 @@ public static class Program
         }
     }
 
+    private static string KUBERNETES_NODE
+    {
+        get
+        {
+            try
+            {
+                var node = Environment.GetEnvironmentVariable("KUBERNETES_NODE");
+                if (string.IsNullOrEmpty(node))
+                {
+                    return null;
+                }
+
+                return node;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
     private static string CLUSTER_NAME
     {
         get
         {
             try
             {
-                var clusterName = Environment.GetEnvironmentVariable("CLUSTER_NAME");
+                var clusterName = Environment.GetEnvironmentVariable("DEPLOYMENT_NAME");
 
                 if (string.IsNullOrEmpty(clusterName))
                 {
@@ -593,4 +627,25 @@ public static class Program
         }
     }
 
+    private static string BUILD_NUMBER
+    {
+        get
+        {
+            try
+            {
+                var buildNumber = Environment.GetEnvironmentVariable("BUILD_NUMBER");
+
+                if (string.IsNullOrEmpty(buildNumber))
+                {
+                    return null;
+                }
+
+                return buildNumber;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
 }

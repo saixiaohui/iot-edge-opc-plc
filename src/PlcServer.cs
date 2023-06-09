@@ -60,7 +60,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(CreateSession));
+            Meters.RecordTotalErrors(nameof(CreateSession), ex.GetType().ToString());
             Logger.Error(ex, "Error creating session");
             throw;
         }
@@ -97,7 +97,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(CreateSubscription));
+            Meters.RecordTotalErrors(nameof(CreateSubscription), ex.GetType().ToString());
             Logger.Error(ex, "Error creating subscription");
             throw;
         }
@@ -129,7 +129,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(CreateMonitoredItems));
+            Meters.RecordTotalErrors(nameof(CreateMonitoredItems), ex.GetType().ToString());
             Logger.Error(ex, "Error creating monitored items");
             throw;
         }
@@ -182,7 +182,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(Publish));
+            Meters.RecordTotalErrors(nameof(Publish), ex.GetType().ToString());
             Logger.Error(ex, "Error publishing.");
             throw;
         }
@@ -206,7 +206,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(Read));
+            Meters.RecordTotalErrors(nameof(Read), ex.GetType().ToString());
             Logger.Error(ex, "Error reading.");
             throw;
         }
@@ -224,7 +224,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            Meters.RecordTotalErrors(nameof(Write));
+            Meters.RecordTotalErrors(nameof(Write), ex.GetType().ToString());
             Logger.Error(ex, "Error writing.");
             throw;
         }
