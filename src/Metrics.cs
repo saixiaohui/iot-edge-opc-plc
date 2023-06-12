@@ -4,10 +4,13 @@ using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
 
-using static Program;
+using Microsoft.Extensions.Logging;
+using Serilog.Extensions.Logging;
 
 public class Metrics
 {
+    private readonly ILogger logger = new SerilogLoggerFactory(Program.Logger).CreateLogger("Metrics");
+
     private readonly IDictionary<string, object> baseDimensions;
 
     private readonly UpDownCounter<int> podCount;
@@ -41,14 +44,14 @@ public class Metrics
     {
         var dimensions = ConvertDictionaryToKeyVaultPairArray(baseDimensions);
         this.podCount.Add(delta, dimensions);
-        Logger.Information("Increased Pod count metric: {PodCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased Pod count metric: {PodCount} and {Dimensions}", delta, dimensions.ToJson());
     }
 
     public void AddSessionCount(string sessionId, int delta = 1)
     {
         var dimensions = MergeWithBaseDimensions(new KeyValuePair<string, object>("session", sessionId));
         this.sessionCount.Add(delta, dimensions);
-        Logger.Information("Increased Session count metric: {SessionCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased Session count metric: {SessionCount} and {Dimensions}", delta, dimensions.ToJson());
     }
 
     public void AddSubscriptionCount(string sessionId, string subscriptionId, int delta = 1)
@@ -58,7 +61,7 @@ public class Metrics
                        new KeyValuePair<string, object>("subscription", subscriptionId));
 
         this.subscriptionCount.Add(delta, dimensions);
-        Logger.Information("Increased Subscription count metric: {SubscriptionCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased Subscription count metric: {SubscriptionCount} and {Dimensions}", delta, dimensions.ToJson());
     }
 
     public void AddMonitoredItemCount(string sessionId, string subscriptionId, int delta = 1)
@@ -67,7 +70,7 @@ public class Metrics
                         new KeyValuePair<string, object>("session", sessionId),
                         new KeyValuePair<string, object>("subscription", subscriptionId));
         this.monitoredItemCount.Add(delta, dimensions);
-        Logger.Information("Increased MonitoredItem count metric: {MonitoredItemCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased MonitoredItem count metric: {MonitoredItemCount} and {Dimensions}", delta, dimensions.ToJson());
     }
 
     public void AddPublishedCount(string sessionId, string subscriptionId, int dataPoints, int events)
@@ -76,7 +79,7 @@ public class Metrics
                         new KeyValuePair<string, object>("session", sessionId),
                         new KeyValuePair<string, object>("subscription", subscriptionId));
         this.publishedCount.Add(1, dimensions);
-        Logger.Information("Increased Published count metric: {PublishedCount} and {Dimensions}", 1, dimensions.ToJson());
+        this.logger.LogDebug("Increased Published count metric: {PublishedCount} and {Dimensions}", 1, dimensions.ToJson());
 
         if (dataPoints > 0)
         {
@@ -85,7 +88,7 @@ public class Metrics
                         new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "data_point"));
             this.publishedCountWithType.Add(dataPoints, dataPointsDimensions);
-            Logger.Information("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "data_point", dataPointsDimensions.ToJson());
+            this.logger.LogDebug("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "data_point", dataPointsDimensions.ToJson());
         }
 
         if (events > 0)
@@ -95,7 +98,7 @@ public class Metrics
                         new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "event"));
             this.publishedCountWithType.Add(events, eventsDimensions);
-            Logger.Information("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "event", eventsDimensions.ToJson());
+            this.logger.LogDebug("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "event", eventsDimensions.ToJson());
         }
     }
 
@@ -105,7 +108,7 @@ public class Metrics
             new KeyValuePair<string, object>("operation", operation),
             new KeyValuePair<string, object>("error_type", errorType));
         this.totalErrors.Add(delta, dimensions);
-        Logger.Information("Increased TotalErrors count metric: {TotalErrors} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased TotalErrors count metric: {TotalErrors} and {Dimensions}", delta, dimensions.ToJson());
     }
 
     private KeyValuePair<string, object>[] MergeWithBaseDimensions(params KeyValuePair<string, object>[] items)

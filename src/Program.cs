@@ -344,6 +344,9 @@ public static class Program
             loggerConfiguration.Enrich.WithProperty("BuildNumber", BUILD_NUMBER);
         }
 
+        var runIterationId = Guid.NewGuid().ToString();
+        loggerConfiguration.Enrich.WithProperty("RunIterationId", runIterationId);
+
         if (string.IsNullOrWhiteSpace(LogLevelForOPCUAServer))
         {
             LogLevelForOPCUAServer = LogLevel;
@@ -417,7 +420,6 @@ public static class Program
                 TableName = Environment.GetEnvironmentVariable("tableName"),
                 FlushImmediately = Environment.GetEnvironmentVariable("flushImmediately").IsNotNullOrEmpty() && bool.Parse(Environment.GetEnvironmentVariable("flushImmediately")!),
                 BufferBaseFileName = Environment.GetEnvironmentVariable("bufferBaseFileName"),
-                BatchPostingLimit = 10,
                 Period = TimeSpan.FromSeconds(5),
 
                 ColumnsMapping = new[]
@@ -435,7 +437,8 @@ public static class Program
                         new SinkColumnMapping { ColumnName ="Properties", ColumnType ="dynamic", ValuePath = "$.Properties" } ,
                         new SinkColumnMapping { ColumnName ="Position", ColumnType ="dynamic", ValuePath = "$.Properties.Position" } ,
                         new SinkColumnMapping { ColumnName ="Elapsed", ColumnType ="int", ValuePath = "$.Properties.Elapsed" } ,
-                        new SinkColumnMapping { ColumnName ="BuildNumber", ColumnType ="int", ValuePath = "$.Properties.BuildNumber" } ,
+                        new SinkColumnMapping { ColumnName ="BuildNumber", ColumnType ="string", ValuePath = "$.Properties.BuildNumber" } ,
+                        new SinkColumnMapping { ColumnName ="RunIterationId", ColumnType ="string", ValuePath = "$.Properties.RunIterationId" } ,
                     }
             }.WithAadApplicationKey(
                 Environment.GetEnvironmentVariable("appId"),
