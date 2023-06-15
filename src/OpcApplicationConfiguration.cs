@@ -31,6 +31,9 @@ public partial class OpcApplicationConfiguration
     public static string ProductUri => "https://github.com/azure-samples/iot-edge-opc-plc";
     public static ushort ServerPort { get; set; } = 50000;
     public static string ServerPath { get; set; } = string.Empty;
+    public static int MaxSessionCount { get; set; } = 100;
+    public static int MaxSubscriptionCount { get; set; } = 100;
+    public static int MaxQueuedRequestCount { get; set; } = 2000;
 
     /// <summary>
     /// Default endpoint security of the application.
@@ -125,16 +128,20 @@ public partial class OpcApplicationConfiguration
         ConfigureUserTokenPolicies(serverBuilder);
 
         // Support larger number of nodes.
-        var securityBuilder = serverBuilder.SetMaxMessageQueueSize(MAX_MESSAGE_QUEUE_SIZE)
+        var securityBuilder = serverBuilder
+            .SetMaxMessageQueueSize(MAX_MESSAGE_QUEUE_SIZE)
             .SetMaxNotificationsPerPublish(MAX_NOTIFICATIONS_PER_PUBLISH)
-            .SetMaxSubscriptionCount(MAX_SUBSCRIPTION_COUNT)
             .SetMaxPublishRequestCount(MAX_PUBLISH_REQUEST_COUNT)
             .SetMaxRequestThreadCount(MAX_REQUEST_THREAD_COUNT)
             // LDS registration interval
             .SetMaxRegistrationInterval(LdsRegistrationInterval)
             // enable auditing events and diagnostics
             .SetDiagnosticsEnabled(true)
-            .SetAuditingEnabled(true);
+            .SetAuditingEnabled(true)
+            // set the server capabilities
+            .SetMaxSessionCount(MaxSessionCount)
+            .SetMaxSubscriptionCount(MaxSubscriptionCount)
+            .SetMaxQueuedRequestCount(MaxQueuedRequestCount);
 
         // security configuration
         ApplicationConfiguration = await InitApplicationSecurityAsync(securityBuilder).ConfigureAwait(false);
@@ -208,6 +215,9 @@ public partial class OpcApplicationConfiguration
 
         // show certificate store information
         await ShowCertificateStoreInformationAsync().ConfigureAwait(false);
+        Logger.Information("Application configured with MaxSessionCount {maxSessionCount} and MaxSubscriptionCount {maxSubscriptionCount}",
+            ApplicationConfiguration.ServerConfiguration.MaxSessionCount,
+            ApplicationConfiguration.ServerConfiguration.MaxSubscriptionCount);
 
         return ApplicationConfiguration;
     }
@@ -232,8 +242,7 @@ public partial class OpcApplicationConfiguration
 
     private const int MAX_MESSAGE_QUEUE_SIZE = 200000;
     private const int MAX_NOTIFICATIONS_PER_PUBLISH = 200000;
-    private const int MAX_SUBSCRIPTION_COUNT = 200;
-    private const int MAX_PUBLISH_REQUEST_COUNT = MAX_SUBSCRIPTION_COUNT;
+    private const int MAX_PUBLISH_REQUEST_COUNT = 200;
     private const int MAX_REQUEST_THREAD_COUNT = MAX_PUBLISH_REQUEST_COUNT;
 
     private static string _hostname = Utils.GetHostName().ToLowerInvariant();

@@ -337,6 +337,15 @@ Options:
       --to, --trustowncert   the own certificate is put into the trusted
                                certificate store automatically.
                                Default: False
+      --msec, --maxsessioncount
+                             maximum number of parallel sessions.
+                               Default: 100
+      --msuc, --maxsubscriptioncount
+                             maximum number of subscriptions.
+                               Default: 100
+      --mqrc, --maxqueuedrequestcount
+                             maximum number of requests that will be queued waiting for a thread.
+                               Default: 2000
       --at, --appcertstoretype=VALUE
                              the own application cert store type.
                                (allowed values: Directory, X509Store)
