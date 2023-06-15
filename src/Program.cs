@@ -418,9 +418,10 @@ public static class Program
                 IngestionEndpointUri = Environment.GetEnvironmentVariable("ingestionURI"),
                 DatabaseName = Environment.GetEnvironmentVariable("databaseName"),
                 TableName = Environment.GetEnvironmentVariable("tableName"),
-                FlushImmediately = Environment.GetEnvironmentVariable("flushImmediately").IsNotNullOrEmpty() && bool.Parse(Environment.GetEnvironmentVariable("flushImmediately")!),
+                // FlushImmediately = true, //Environment.GetEnvironmentVariable("flushImmediately").IsNotNullOrEmpty() && bool.Parse(Environment.GetEnvironmentVariable("flushImmediately")!),
                 BufferBaseFileName = Environment.GetEnvironmentVariable("bufferBaseFileName"),
                 Period = TimeSpan.FromSeconds(5),
+                UseStreamingIngestion = true,
 
                 ColumnsMapping = new[]
                     {
@@ -439,6 +440,9 @@ public static class Program
                         new SinkColumnMapping { ColumnName ="Elapsed", ColumnType ="int", ValuePath = "$.Properties.Elapsed" } ,
                         new SinkColumnMapping { ColumnName ="BuildNumber", ColumnType ="string", ValuePath = "$.Properties.BuildNumber" } ,
                         new SinkColumnMapping { ColumnName ="RunIterationId", ColumnType ="string", ValuePath = "$.Properties.RunIterationId" } ,
+                        new SinkColumnMapping { ColumnName ="MetricName", ColumnType ="string", ValuePath = "$.Properties.MetricName" } ,
+                        new SinkColumnMapping { ColumnName ="MetricValue", ColumnType ="float", ValuePath = "$.Properties.MetricValue" } ,
+                        new SinkColumnMapping { ColumnName ="Dimensions", ColumnType ="string", ValuePath = "$.Properties.Dimensions" } ,
                     }
             }.WithAadApplicationKey(
                 Environment.GetEnvironmentVariable("appId"),

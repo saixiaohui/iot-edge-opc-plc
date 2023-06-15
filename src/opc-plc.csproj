@@ -32,7 +32,6 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.4.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="0.5.0-beta.2" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.1.0-rc.2" />
-    <PackageReference Include="Serilog.Sinks.AzureDataExplorer" Version="1.0.3" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Bindings.Https.Debug" Version="1.4.371.91" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="7.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
@@ -71,6 +70,10 @@
 
   <ItemGroup>
     <Folder Include="AlarmCondition\UnderlyingSystem\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="D:\code\serilog-sinks-azuredataexplorer\src\Serilog.Sinks.AzureDataExplorer\Serilog.Sinks.AzureDataExplorer.csproj" />
   </ItemGroup>
 
 </Project>

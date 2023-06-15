@@ -9,6 +9,14 @@ using Serilog.Extensions.Logging;
 
 public class Metrics
 {
+    private const string OPC_PLC_POD_COUNT_METRIC = "opc_plc_pod_count";
+    private const string OPC_PLC_SESSION_COUNT_METRIC = "opc_plc_session_count";
+    private const string OPC_PLC_SUBSCRIPTION_COUNT_METRIC = "opc_plc_subscription_count";
+    private const string OPC_PLC_MONITORED_ITEM_COUNT_METRIC = "opc_plc_monitored_item_count";
+    private const string OPC_PLC_PUBLISHED_COUNT_METRIC = "opc_plc_published_count";
+    private const string OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC = "opc_plc_published_count_with_type";
+    private const string OPC_PLC_TOTAL_ERRORS_METRIC = "opc_plc_total_errors";
+
     private readonly ILogger logger = new SerilogLoggerFactory(Program.Logger).CreateLogger("Metrics");
 
     private readonly IDictionary<string, object> baseDimensions;
@@ -30,12 +38,12 @@ public class Metrics
 
         var meter = new Meter(name);
 
-        this.podCount = meter.CreateUpDownCounter<int>("opc_plc_pod_count", "", "Number of pods");
-        this.sessionCount = meter.CreateUpDownCounter<int>("opc_plc_session_count", "", "Number of sessions");
-        this.subscriptionCount = meter.CreateUpDownCounter<int>("opc_plc_subscription_count", "", "Number of subscriptions");
-        this.monitoredItemCount = meter.CreateUpDownCounter<int>("opc_plc_monitored_item_count", "", "Number of monitored items");
-        this.publishedCount = meter.CreateCounter<int>("opc_plc_published_count", "", "Number of published items");
-        this.publishedCountWithType = meter.CreateCounter<int>("opc_plc_published_count_with_type", "", "Number of published items for datapoints and events");
+        this.podCount = meter.CreateUpDownCounter<int>(OPC_PLC_POD_COUNT_METRIC, "", "Number of pods");
+        this.sessionCount = meter.CreateUpDownCounter<int>(OPC_PLC_SESSION_COUNT_METRIC, "", "Number of sessions");
+        this.subscriptionCount = meter.CreateUpDownCounter<int>(OPC_PLC_SUBSCRIPTION_COUNT_METRIC, "", "Number of subscriptions");
+        this.monitoredItemCount = meter.CreateUpDownCounter<int>(OPC_PLC_MONITORED_ITEM_COUNT_METRIC, "", "Number of monitored items");
+        this.publishedCount = meter.CreateCounter<int>(OPC_PLC_PUBLISHED_COUNT_METRIC, "", "Number of published items");
+        this.publishedCountWithType = meter.CreateCounter<int>(OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC, "", "Number of published items for datapoints and events");
 
         this.totalErrors = meter.CreateCounter<int>("opc_plc_total_errors", "", "Number of total errors of all types.");
     }
@@ -44,14 +52,14 @@ public class Metrics
     {
         var dimensions = ConvertDictionaryToKeyVaultPairArray(baseDimensions);
         this.podCount.Add(delta, dimensions);
-        this.logger.LogDebug("Increased Pod count metric: {PodCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased metric: {MertricName} with value: {MetricValue} and dimensions: {Dimensions}", OPC_PLC_POD_COUNT_METRIC, delta, dimensions.ToJson());
     }
 
     public void AddSessionCount(string sessionId, int delta = 1)
     {
         var dimensions = MergeWithBaseDimensions(new KeyValuePair<string, object>("session", sessionId));
         this.sessionCount.Add(delta, dimensions);
-        this.logger.LogDebug("Increased Session count metric: {SessionCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and dimensions: {Dimensions}", OPC_PLC_SESSION_COUNT_METRIC, delta, dimensions.ToJson());
     }
 
     public void AddSubscriptionCount(string sessionId, string subscriptionId, int delta = 1)
@@ -61,7 +69,7 @@ public class Metrics
                        new KeyValuePair<string, object>("subscription", subscriptionId));
 
         this.subscriptionCount.Add(delta, dimensions);
-        this.logger.LogDebug("Increased Subscription count metric: {SubscriptionCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and dimensions: {Dimensions}", OPC_PLC_SUBSCRIPTION_COUNT_METRIC, delta, dimensions.ToJson());
     }
 
     public void AddMonitoredItemCount(string sessionId, string subscriptionId, int delta = 1)
@@ -70,7 +78,7 @@ public class Metrics
                         new KeyValuePair<string, object>("session", sessionId),
                         new KeyValuePair<string, object>("subscription", subscriptionId));
         this.monitoredItemCount.Add(delta, dimensions);
-        this.logger.LogDebug("Increased MonitoredItem count metric: {MonitoredItemCount} and {Dimensions}", delta, dimensions.ToJson());
+        this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and dimensions: {Dimensions}", OPC_PLC_MONITORED_ITEM_COUNT_METRIC, delta, dimensions.ToJson());
     }
 
     public void AddPublishedCount(string sessionId, string subscriptionId, int dataPoints, int events)
@@ -79,7 +87,7 @@ public class Metrics
                         new KeyValuePair<string, object>("session", sessionId),
                         new KeyValuePair<string, object>("subscription", subscriptionId));
         this.publishedCount.Add(1, dimensions);
-        this.logger.LogDebug("Increased Published count metric: {PublishedCount} and {Dimensions}", 1, dimensions.ToJson());
+        this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and dimensions: {Dimensions}", OPC_PLC_PUBLISHED_COUNT_METRIC, 1, dimensions.ToJson());
 
         if (dataPoints > 0)
         {
@@ -88,7 +96,7 @@ public class Metrics
                         new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "data_point"));
             this.publishedCountWithType.Add(dataPoints, dataPointsDimensions);
-            this.logger.LogDebug("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "data_point", dataPointsDimensions.ToJson());
+            this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and type: {Type} and dimensions: {Dimensions}", OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC, dataPoints, "data_point", dataPointsDimensions.ToJson());
         }
 
         if (events > 0)
@@ -98,7 +106,7 @@ public class Metrics
                         new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "event"));
             this.publishedCountWithType.Add(events, eventsDimensions);
-            this.logger.LogDebug("Increased Published count with type metric: {PublishedCount} and {Type} and {Dimensions}", dataPoints, "event", eventsDimensions.ToJson());
+            this.logger.LogDebug("Increased metric: {MetricName} with value: {MetricValue} and type: {Type} and dimensions: {Dimensions}", OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC, events, "event", eventsDimensions.ToJson());
         }
     }
 
