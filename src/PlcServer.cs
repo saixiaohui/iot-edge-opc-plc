@@ -6,13 +6,16 @@ using Opc.Ua.Server;
 using OpcPlc.CompanionSpecs.DI;
 using OpcPlc.DeterministicAlarms;
 using OpcPlc.Reference;
+using Serilog.Extensions.Logging;
 using SimpleEvents;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
+
+using Microsoft.Extensions.Logging;
+
 using static Program;
 
 public partial class PlcServer : StandardServer
@@ -24,9 +27,213 @@ public partial class PlcServer : StandardServer
     public DeterministicAlarmsNodeManager DeterministicAlarmsNodeManager = null;
     public readonly TimeService TimeService;
 
+    private readonly ILogger logger = new SerilogLoggerFactory(Program.Logger).CreateLogger("PlcServer");
+
     public PlcServer(TimeService timeService)
     {
         TimeService = timeService;
+    }
+
+    public override ResponseHeader CreateSession(
+        RequestHeader requestHeader,
+        ApplicationDescription clientDescription,
+        string serverUri,
+        string endpointUrl,
+        string sessionName,
+        byte[] clientNonce,
+        byte[] clientCertificate,
+        double requestedSessionTimeout,
+        uint maxResponseMessageSize,
+        out NodeId sessionId,
+        out NodeId authenticationToken,
+        out double revisedSessionTimeout,
+        out byte[] serverNonce,
+        out byte[] serverCertificate,
+        out EndpointDescriptionCollection serverEndpoints,
+        out SignedSoftwareCertificateCollection serverSoftwareCertificates,
+        out SignatureData serverSignature,
+        out uint maxRequestMessageSize)
+    {
+        try
+        {
+            var responseHeader = base.CreateSession(requestHeader, clientDescription, serverUri, endpointUrl, sessionName, clientNonce, clientCertificate, requestedSessionTimeout, maxResponseMessageSize, out sessionId, out authenticationToken, out revisedSessionTimeout, out serverNonce, out serverCertificate, out serverEndpoints, out serverSoftwareCertificates, out serverSignature, out maxRequestMessageSize);
+
+            DiagnosticsConfig.AddSessionCount(sessionId.ToString());
+
+            logger.LogDebug("{function} completed successfully with sesssionId: {sessionId}.", nameof(CreateSession), sessionId);
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(CreateSession), ex.GetType().ToString());
+            logger.LogError(ex, "Error creating session");
+            throw;
+        }
+    }
+
+    public override ResponseHeader CreateSubscription(
+        RequestHeader requestHeader,
+        double requestedPublishingInterval,
+        uint requestedLifetimeCount,
+        uint requestedMaxKeepAliveCount,
+        uint maxNotificationsPerPublish,
+        bool publishingEnabled,
+        byte priority,
+        out uint subscriptionId,
+        out double revisedPublishingInterval,
+        out uint revisedLifetimeCount,
+        out uint revisedMaxKeepAliveCount)
+    {
+        try
+        {
+            OperationContext context = ValidateRequest(requestHeader, RequestType.CreateSubscription);
+
+            var responseHeader = base.CreateSubscription(requestHeader, requestedPublishingInterval, requestedLifetimeCount, requestedMaxKeepAliveCount, maxNotificationsPerPublish, publishingEnabled, priority, out subscriptionId, out revisedPublishingInterval, out revisedLifetimeCount, out revisedMaxKeepAliveCount);
+
+            DiagnosticsConfig.AddSubscriptionCount(context.SessionId.ToString(), subscriptionId.ToString());
+
+            logger.LogDebug(
+                "{function} completed successfully with sessionId: {sessionId} and subscriptionId: {subscriptionId}.",
+                nameof(CreateSubscription),
+                context.SessionId,
+                subscriptionId);
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(CreateSubscription), ex.GetType().ToString());
+            logger.LogError(ex, "Error creating subscription");
+            throw;
+        }
+    }
+
+    public override ResponseHeader CreateMonitoredItems(
+        RequestHeader requestHeader,
+        uint subscriptionId,
+        TimestampsToReturn timestampsToReturn,
+        MonitoredItemCreateRequestCollection itemsToCreate,
+        out MonitoredItemCreateResultCollection results,
+        out DiagnosticInfoCollection diagnosticInfos)
+    {
+        try
+        {
+            OperationContext context = ValidateRequest(requestHeader, RequestType.CreateSubscription);
+
+            var responseHeader = base.CreateMonitoredItems(requestHeader, subscriptionId, timestampsToReturn, itemsToCreate, out results, out diagnosticInfos);
+
+            DiagnosticsConfig.AddMonitoredItemCount(context.SessionId.ToString(), subscriptionId.ToString(), itemsToCreate.Count);
+
+            logger.LogDebug("{function} completed successfully with sessionId: {sessionId}, subscriptionId: {subscriptionId} and count: {count}.",
+                nameof(CreateMonitoredItems),
+                context.SessionId,
+                subscriptionId,
+                itemsToCreate.Count);
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(CreateMonitoredItems), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error creating monitored items");
+            throw;
+        }
+    }
+
+    public override ResponseHeader Publish(
+        RequestHeader requestHeader,
+        SubscriptionAcknowledgementCollection subscriptionAcknowledgements,
+        out uint subscriptionId,
+        out UInt32Collection availableSequenceNumbers,
+        out bool moreNotifications,
+        out NotificationMessage notificationMessage,
+        out StatusCodeCollection results,
+        out DiagnosticInfoCollection diagnosticInfos)
+    {
+        try
+        {
+            OperationContext context = ValidateRequest(requestHeader, RequestType.CreateSubscription);
+
+            var responseHeader = base.Publish(requestHeader, subscriptionAcknowledgements, out subscriptionId, out availableSequenceNumbers, out moreNotifications, out notificationMessage, out results, out diagnosticInfos);
+
+            int events = 0;
+            int dataChanges = 0;
+            int diagnostics = 0;
+            notificationMessage.NotificationData.ForEach(x =>
+            {
+                if (x.Body is DataChangeNotification changeNotification)
+                {
+                    dataChanges += changeNotification.MonitoredItems.Count;
+                    diagnostics += changeNotification.DiagnosticInfos.Count;
+                }
+                else if (x.Body is EventNotificationList eventNotification)
+                {
+                    events += eventNotification.Events.Count;
+                }
+                else
+                {
+                    Console.WriteLine("Unknown notification type");
+                }
+            });
+
+            DiagnosticsConfig.AddPublishedCount(context.SessionId.ToString(), subscriptionId.ToString(), dataChanges, events);
+
+            logger.LogDebug("{function} successfully with session: {sessionId} and subscriptionId: {subscriptionId}.",
+                nameof(Publish),
+                context.SessionId,
+                subscriptionId);
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(Publish), ex.GetType().ToString());
+            logger.LogError(ex, "Error publishing.");
+            throw;
+        }
+    }
+
+    public override ResponseHeader Read(
+        RequestHeader requestHeader,
+        double maxAge,
+        TimestampsToReturn timestampsToReturn,
+        ReadValueIdCollection nodesToRead,
+        out DataValueCollection results,
+        out DiagnosticInfoCollection diagnosticInfos)
+    {
+        try
+        {
+            var responseHeader = base.Read(requestHeader, maxAge, timestampsToReturn, nodesToRead, out results, out diagnosticInfos);
+
+            Logger.Debug("{function} completed successfully.", nameof(Read));
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(Read), ex.GetType().ToString());
+            logger.LogError(ex, "Error reading.");
+            throw;
+        }
+    }
+
+    public override ResponseHeader Write(RequestHeader requestHeader, WriteValueCollection nodesToWrite, out StatusCodeCollection results, out DiagnosticInfoCollection diagnosticInfos)
+    {
+        try
+        {
+            var responseHeader = base.Write(requestHeader, nodesToWrite, out results, out diagnosticInfos);
+
+            logger.LogDebug("{function} completed successfully.", nameof(Write));
+
+            return responseHeader;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsConfig.RecordTotalErrors(nameof(Write), ex.GetType().ToString());
+            logger.LogError(ex, "Error writing.");
+            throw;
+        }
     }
 
     /// <summary>
@@ -80,13 +287,13 @@ public partial class PlcServer : StandardServer
             if (string.IsNullOrWhiteSpace(scriptFileName))
             {
                 string errorMessage = "The script file for deterministic testing is not set (deterministicalarms).";
-                Logger.Error(errorMessage);
+                logger.LogError(errorMessage);
                 throw new Exception(errorMessage);
             }
             if (!File.Exists(scriptFileName))
             {
                 string errorMessage = $"The script file ({scriptFileName}) for deterministic testing does not exist.";
-                Logger.Error(errorMessage);
+                logger.LogError(errorMessage);
                 throw new Exception(errorMessage);
             }
 
@@ -99,6 +306,16 @@ public partial class PlcServer : StandardServer
         return masterNodeManager;
     }
 
+    public override ResponseHeader DeleteMonitoredItems(RequestHeader requestHeader, uint subscriptionId, UInt32Collection monitoredItemIds, out StatusCodeCollection results, out DiagnosticInfoCollection diagnosticInfos)
+    {
+        return base.DeleteMonitoredItems(requestHeader, subscriptionId, monitoredItemIds, out results, out diagnosticInfos);
+    }
+
+    public override ResponseHeader CloseSession(RequestHeader requestHeader, bool deleteSubscriptions)
+    {
+        return base.CloseSession(requestHeader, deleteSubscriptions);
+    }
+
     /// <summary>
     /// Loads the non-configurable properties for the application.
     /// </summary>
@@ -107,22 +324,15 @@ public partial class PlcServer : StandardServer
     /// </remarks>
     protected override ServerProperties LoadServerProperties()
     {
-        var fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-
-        string opcPlcBuildNumber = fileVersion.ProductVersion[(fileVersion.ProductVersion.IndexOf('+') + 1)..];
-        string opcUaSdkVersion = Utils.GetAssemblySoftwareVersion();
-        string opcUaSdkBuildNumber = opcUaSdkVersion[(opcUaSdkVersion.IndexOf('+') + 1)..];
-
         var properties = new ServerProperties
         {
             ManufacturerName = "Microsoft",
-            ProductName = "IoT Edge OPC UA PLC",
-            ProductUri = "https://github.com/Azure-Samples/iot-edge-opc-plc",
-            SoftwareVersion = $"{fileVersion.ProductMajorPart}.{fileVersion.ProductMinorPart}.{fileVersion.ProductBuildPart} (OPC UA SDK {Utils.GetAssemblyBuildNumber()})",
-            BuildNumber = $"{opcPlcBuildNumber} (OPC UA SDK {opcUaSdkBuildNumber} from {Utils.GetAssemblyTimestamp():yyyy-MM-ddTHH:mm:ssZ})",
-            BuildDate = File.GetLastWriteTimeUtc(Assembly.GetExecutingAssembly().Location),
+            ProductName = "IoTEdge OPC UA PLC",
+            ProductUri = "https://github.com/Azure/iot-edge-opc-plc.git",
+            SoftwareVersion = Utils.GetAssemblySoftwareVersion(),
+            BuildNumber = Utils.GetAssemblyBuildNumber(),
+            BuildDate = Utils.GetAssemblyTimestamp()
         };
-
         return properties;
     }
 
@@ -180,9 +390,9 @@ public partial class PlcServer : StandardServer
         try
         {
             // check for connected clients
-            IList<Session> currentSessions = ServerInternal.SessionManager.GetSessions();
+            IList<Session> currentessions = ServerInternal.SessionManager.GetSessions();
 
-            if (currentSessions.Count > 0)
+            if (currentessions.Count > 0)
             {
                 // provide some time for the connected clients to detect the shutdown state.
                 ServerInternal.Status.Value.ShutdownReason = new LocalizedText("en-US", "Application closed.");
