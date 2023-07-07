@@ -1,5 +1,6 @@
 ﻿namespace OpcPlc;
 
+using Microsoft.Extensions.Logging;
 using Mono.Options;
 using Opc.Ua;
 using OpcPlc.Helpers;
@@ -43,6 +44,20 @@ public class CliOptions
                     }
                 }
             },
+            { "llo|loglevelopcuaserver=", "the loglevel to use for opcua server (allowed: fatal, error, warn, info, debug, verbose). It will use log level for OPC UA Server if not set.\nDefault: info", (string s) => 
+                {
+                    var logLevels = new List<string> {"fatal", "error", "warn", "info", "debug", "verbose"};
+                    if (logLevels.Contains(s.ToLowerInvariant()))
+                    {
+                        Program.LogLevelForOPCUAServer = s.ToLowerInvariant();
+                    }
+                    else
+                    {
+                        throw new OptionException("The loglevel must be one of: fatal, error, warn, info, debug, verbose", "loglevel");
+                    }
+                }
+            },
+            { "la|logtoadx", $"log to adx. \nDefault: {Program.LogToADX}", (string s) => Program.LogToADX = s != null },
 
             // simulation configuration
             { "sc|simulationcyclecount=", $"count of cycles in one simulation phase\nDefault:  {SimulationCycleCount} cycles", (int i) => SimulationCycleCount = i },
@@ -232,7 +247,7 @@ public class CliOptions
         using var stringWriter = new StringWriter(sb);
         options.WriteOptionDescriptions(stringWriter);
 
-        Program.Logger.Information(sb.ToString());
+        Program.Logger.LogInformation(sb.ToString());
     }
 
     /// <summary>

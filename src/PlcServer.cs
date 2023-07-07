@@ -6,15 +6,17 @@ using Opc.Ua.Server;
 using OpcPlc.CompanionSpecs.DI;
 using OpcPlc.DeterministicAlarms;
 using OpcPlc.Reference;
-using Serilog.Extensions.Logging;
 using SimpleEvents;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
 
 using Microsoft.Extensions.Logging;
+
+using Meters = OpcPlc.DiagnosticsConfig;
 
 using static Program;
 
@@ -27,11 +29,12 @@ public partial class PlcServer : StandardServer
     public DeterministicAlarmsNodeManager DeterministicAlarmsNodeManager = null;
     public readonly TimeService TimeService;
 
-    private readonly ILogger logger = new SerilogLoggerFactory(Program.Logger).CreateLogger("PlcServer");
+    private readonly ILogger logger;
 
-    public PlcServer(TimeService timeService)
+    public PlcServer(TimeService timeService, ILogger logger)
     {
         TimeService = timeService;
+        this.logger = logger;
     }
 
     public override ResponseHeader CreateSession(
@@ -58,16 +61,16 @@ public partial class PlcServer : StandardServer
         {
             var responseHeader = base.CreateSession(requestHeader, clientDescription, serverUri, endpointUrl, sessionName, clientNonce, clientCertificate, requestedSessionTimeout, maxResponseMessageSize, out sessionId, out authenticationToken, out revisedSessionTimeout, out serverNonce, out serverCertificate, out serverEndpoints, out serverSoftwareCertificates, out serverSignature, out maxRequestMessageSize);
 
-            DiagnosticsConfig.AddSessionCount(sessionId.ToString());
+            Meters.AddSessionCount(sessionId.ToString());
 
-            logger.LogDebug("{function} completed successfully with sesssionId: {sessionId}.", nameof(CreateSession), sessionId);
+            this.logger.LogDebug("{function} completed successfully with sesssionId: {sessionId}.", nameof(CreateSession), sessionId);
 
             return responseHeader;
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(CreateSession), ex.GetType().ToString());
-            logger.LogError(ex, "Error creating session");
+            Meters.RecordTotalErrors(nameof(CreateSession), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error creating session");
             throw;
         }
     }
@@ -91,9 +94,9 @@ public partial class PlcServer : StandardServer
 
             var responseHeader = base.CreateSubscription(requestHeader, requestedPublishingInterval, requestedLifetimeCount, requestedMaxKeepAliveCount, maxNotificationsPerPublish, publishingEnabled, priority, out subscriptionId, out revisedPublishingInterval, out revisedLifetimeCount, out revisedMaxKeepAliveCount);
 
-            DiagnosticsConfig.AddSubscriptionCount(context.SessionId.ToString(), subscriptionId.ToString());
+            Meters.AddSubscriptionCount(context.SessionId.ToString(), subscriptionId.ToString());
 
-            logger.LogDebug(
+            this.logger.LogDebug(
                 "{function} completed successfully with sessionId: {sessionId} and subscriptionId: {subscriptionId}.",
                 nameof(CreateSubscription),
                 context.SessionId,
@@ -103,8 +106,8 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(CreateSubscription), ex.GetType().ToString());
-            logger.LogError(ex, "Error creating subscription");
+            Meters.RecordTotalErrors(nameof(CreateSubscription), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error creating subscription");
             throw;
         }
     }
@@ -123,9 +126,9 @@ public partial class PlcServer : StandardServer
 
             var responseHeader = base.CreateMonitoredItems(requestHeader, subscriptionId, timestampsToReturn, itemsToCreate, out results, out diagnosticInfos);
 
-            DiagnosticsConfig.AddMonitoredItemCount(context.SessionId.ToString(), subscriptionId.ToString(), itemsToCreate.Count);
+            Meters.AddMonitoredItemCount(context.SessionId.ToString(), subscriptionId.ToString(), itemsToCreate.Count);
 
-            logger.LogDebug("{function} completed successfully with sessionId: {sessionId}, subscriptionId: {subscriptionId} and count: {count}.",
+            this.logger.LogDebug("{function} completed successfully with sessionId: {sessionId}, subscriptionId: {subscriptionId} and count: {count}.",
                 nameof(CreateMonitoredItems),
                 context.SessionId,
                 subscriptionId,
@@ -135,7 +138,7 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(CreateMonitoredItems), ex.GetType().ToString());
+            Meters.RecordTotalErrors(nameof(CreateMonitoredItems), ex.GetType().ToString());
             this.logger.LogError(ex, "Error creating monitored items");
             throw;
         }
@@ -177,9 +180,9 @@ public partial class PlcServer : StandardServer
                 }
             });
 
-            DiagnosticsConfig.AddPublishedCount(context.SessionId.ToString(), subscriptionId.ToString(), dataChanges, events);
+            Meters.AddPublishedCount(context.SessionId.ToString(), subscriptionId.ToString(), dataChanges, events);
 
-            logger.LogDebug("{function} successfully with session: {sessionId} and subscriptionId: {subscriptionId}.",
+            this.logger.LogDebug("{function} successfully with session: {sessionId} and subscriptionId: {subscriptionId}.",
                 nameof(Publish),
                 context.SessionId,
                 subscriptionId);
@@ -188,8 +191,8 @@ public partial class PlcServer : StandardServer
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(Publish), ex.GetType().ToString());
-            logger.LogError(ex, "Error publishing.");
+            Meters.RecordTotalErrors(nameof(Publish), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error publishing.");
             throw;
         }
     }
@@ -206,14 +209,14 @@ public partial class PlcServer : StandardServer
         {
             var responseHeader = base.Read(requestHeader, maxAge, timestampsToReturn, nodesToRead, out results, out diagnosticInfos);
 
-            Logger.Debug("{function} completed successfully.", nameof(Read));
+            Logger.LogDebug("{function} completed successfully.", nameof(Read));
 
             return responseHeader;
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(Read), ex.GetType().ToString());
-            logger.LogError(ex, "Error reading.");
+            Meters.RecordTotalErrors(nameof(Read), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error reading.");
             throw;
         }
     }
@@ -224,14 +227,14 @@ public partial class PlcServer : StandardServer
         {
             var responseHeader = base.Write(requestHeader, nodesToWrite, out results, out diagnosticInfos);
 
-            logger.LogDebug("{function} completed successfully.", nameof(Write));
+            this.logger.LogDebug("{function} completed successfully.", nameof(Write));
 
             return responseHeader;
         }
         catch (Exception ex)
         {
-            DiagnosticsConfig.RecordTotalErrors(nameof(Write), ex.GetType().ToString());
-            logger.LogError(ex, "Error writing.");
+            Meters.RecordTotalErrors(nameof(Write), ex.GetType().ToString());
+            this.logger.LogError(ex, "Error writing.");
             throw;
         }
     }
@@ -287,13 +290,13 @@ public partial class PlcServer : StandardServer
             if (string.IsNullOrWhiteSpace(scriptFileName))
             {
                 string errorMessage = "The script file for deterministic testing is not set (deterministicalarms).";
-                logger.LogError(errorMessage);
+                this.logger.LogError(errorMessage);
                 throw new Exception(errorMessage);
             }
             if (!File.Exists(scriptFileName))
             {
                 string errorMessage = $"The script file ({scriptFileName}) for deterministic testing does not exist.";
-                logger.LogError(errorMessage);
+                this.logger.LogError(errorMessage);
                 throw new Exception(errorMessage);
             }
 
@@ -324,15 +327,22 @@ public partial class PlcServer : StandardServer
     /// </remarks>
     protected override ServerProperties LoadServerProperties()
     {
+        var fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+
+        string opcPlcBuildNumber = fileVersion.ProductVersion[(fileVersion.ProductVersion.IndexOf('+') + 1)..];
+        string opcUaSdkVersion = Utils.GetAssemblySoftwareVersion();
+        string opcUaSdkBuildNumber = opcUaSdkVersion[(opcUaSdkVersion.IndexOf('+') + 1)..];
+
         var properties = new ServerProperties
         {
             ManufacturerName = "Microsoft",
-            ProductName = "IoTEdge OPC UA PLC",
-            ProductUri = "https://github.com/Azure/iot-edge-opc-plc.git",
-            SoftwareVersion = Utils.GetAssemblySoftwareVersion(),
-            BuildNumber = Utils.GetAssemblyBuildNumber(),
-            BuildDate = Utils.GetAssemblyTimestamp()
+            ProductName = "IoT Edge OPC UA PLC",
+            ProductUri = "https://github.com/Azure-Samples/iot-edge-opc-plc",
+            SoftwareVersion = $"{fileVersion.ProductMajorPart}.{fileVersion.ProductMinorPart}.{fileVersion.ProductBuildPart} (OPC UA SDK {Utils.GetAssemblyBuildNumber()})",
+            BuildNumber = $"{opcPlcBuildNumber} (OPC UA SDK {opcUaSdkBuildNumber} from {Utils.GetAssemblyTimestamp():yyyy-MM-ddTHH:mm:ssZ})",
+            BuildDate = File.GetLastWriteTimeUtc(Assembly.GetExecutingAssembly().Location),
         };
+
         return properties;
     }
 
@@ -390,9 +400,9 @@ public partial class PlcServer : StandardServer
         try
         {
             // check for connected clients
-            IList<Session> currentessions = ServerInternal.SessionManager.GetSessions();
+            IList<Session> currentSessions = ServerInternal.SessionManager.GetSessions();
 
-            if (currentessions.Count > 0)
+            if (currentSessions.Count > 0)
             {
                 // provide some time for the connected clients to detect the shutdown state.
                 ServerInternal.Status.Value.ShutdownReason = new LocalizedText("en-US", "Application closed.");

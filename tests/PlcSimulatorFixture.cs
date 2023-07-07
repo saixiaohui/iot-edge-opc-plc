@@ -79,9 +79,7 @@ public class PlcSimulatorFixture
     public async Task Start()
     {
         Reset();
-        Program.Logger = new LoggerConfiguration()
-            .WriteTo.NUnitOutput()
-            .CreateLogger();
+         
         _log = TestContext.Progress;
 
         var mock = new Mock<TimeService>();
@@ -120,19 +118,24 @@ public class PlcSimulatorFixture
             .Returns(() => _now);
 
         // The simulator program command line.
-        _serverTask = Task.Run(() => Program.MainAsync(
-                _args.Concat(
-                        new[]
-                        {
-                                "--autoaccept",
-                                $"--portnum={Port}",
-                                "--fn=25",
-                                "--fr=1",
-                                "--ft=uint"
-                        })
-                    .ToArray(),
-                _serverCancellationTokenSource.Token)
-            .GetAwaiter().GetResult());
+        _serverTask = Task.Run(() =>
+        {
+            Program.MainAsync(
+                    _args.Concat(
+                            new[]
+                            {
+                            "--autoaccept",
+                            $"--portnum={Port}",
+                            "--fn=25",
+                            "--fr=1",
+                            "--ft=uint"
+                            })
+                        .ToArray(),
+                    _serverCancellationTokenSource.Token)
+                .GetAwaiter().GetResult();
+
+            Program.Logger = Program.LoggerFactoryInstance.CreateLogger("PlcSimulatorFixture");
+        });
 
         string endpointUrl = WaitForServerUp();
         await _log.WriteAsync($"Found server at: {endpointUrl}");

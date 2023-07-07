@@ -1,8 +1,8 @@
 ﻿namespace OpcPlc;
 
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Configuration;
-using Serilog.Extensions.Logging;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -73,7 +73,7 @@ public partial class OpcApplicationConfiguration
     /// <summary>
     /// Configures all OPC stack settings.
     /// </summary>
-    public async Task<ApplicationConfiguration> ConfigureAsync()
+    public async Task<ApplicationConfiguration> ConfigureAsync(ILogger microsoftLogger)
     {
         // instead of using a configuration XML file, configure everything programmatically
         var application = new ApplicationInstance
@@ -101,11 +101,11 @@ public partial class OpcApplicationConfiguration
             }
             catch (Exception ex)
             {
-                Logger.Warning(ex, "Could not get hostname.");
+                Logger.LogWarning(ex, "Could not get hostname.");
             }
         }
 
-        Logger.Information("Alternate base addresses (for server binding and certificate DNSNames and IPAddresses extensions): {alternateBaseAddresses}", alternateBaseAddresses);
+        Logger.LogInformation("Alternate base addresses (for server binding and certificate DNSNames and IPAddresses extensions): {alternateBaseAddresses}", alternateBaseAddresses);
 
         // configure OPC UA server
         var serverBuilder = application.Build(ApplicationUri, ProductUri)
@@ -148,26 +148,23 @@ public partial class OpcApplicationConfiguration
 
         foreach (var policy in ApplicationConfiguration.ServerConfiguration.SecurityPolicies)
         {
-            Logger.Information("Added security policy {securityPolicyUri} with mode {securityMode}",
+            Logger.LogInformation("Added security policy {securityPolicyUri} with mode {securityMode}",
                 policy.SecurityPolicyUri,
                 policy.SecurityMode);
 
             if (policy.SecurityMode == MessageSecurityMode.None)
             {
-                Logger.Warning("Security policy {none} is a security risk and needs to be disabled for production use", "None");
+                Logger.LogWarning("Security policy {none} is a security risk and needs to be disabled for production use", "None");
             }
         }
 
-        Logger.Information("LDS(-ME) registration interval set to {ldsRegistrationInterval} ms (0 means no registration)",
+        Logger.LogInformation("LDS(-ME) registration interval set to {ldsRegistrationInterval} ms (0 means no registration)",
             LdsRegistrationInterval);
 
         // configure OPC stack tracing
         Utils.SetTraceMask(OpcStackTraceMask);
-        Logger.Information("The OPC UA trace mask is set to: {opcStackTraceMask}",
+        Logger.LogWarning("The OPC UA trace mask is set to: {opcStackTraceMask}",
             $"0x{OpcStackTraceMask:X}");
-
-        var microsoftLogger = new SerilogLoggerFactory(Logger)
-            .CreateLogger("OPC");
 
         // set logger interface, disables TraceEvent
         Utils.SetLogger(microsoftLogger);
@@ -176,7 +173,7 @@ public partial class OpcApplicationConfiguration
         var certificate = ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate;
         if (certificate == null)
         {
-            Logger.Information("No existing application certificate found. Creating a self-signed application certificate valid since yesterday for {defaultLifeTime} months, " +
+            Logger.LogInformation("No existing application certificate found. Creating a self-signed application certificate valid since yesterday for {defaultLifeTime} months, " +
                 "with a {defaultKeySize} bit key and {defaultHashSize} bit hash",
                 CertificateFactory.DefaultLifeTime,
                 CertificateFactory.DefaultKeySize,
@@ -184,7 +181,7 @@ public partial class OpcApplicationConfiguration
         }
         else
         {
-            Logger.Information("Application certificate with thumbprint {thumbprint} found in the application certificate store",
+            Logger.LogInformation("Application certificate with thumbprint {thumbprint} found in the application certificate store",
                 certificate.Thumbprint);
         }
 
@@ -198,11 +195,11 @@ public partial class OpcApplicationConfiguration
         if (certificate == null)
         {
             certificate = ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate;
-            Logger.Information("Application certificate with thumbprint {thumbprint} created",
+            Logger.LogInformation("Application certificate with thumbprint {thumbprint} created",
                 certificate.Thumbprint);
         }
 
-        Logger.Information("Application certificate is for ApplicationUri {applicationUri}, ApplicationName {applicationName} and Subject is {subject}",
+        Logger.LogInformation("Application certificate is for ApplicationUri {applicationUri}, ApplicationName {applicationName} and Subject is {subject}",
             ApplicationConfiguration.ApplicationUri,
             ApplicationConfiguration.ApplicationName,
             ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate.Certificate.Subject);
@@ -215,7 +212,7 @@ public partial class OpcApplicationConfiguration
 
         // show certificate store information
         await ShowCertificateStoreInformationAsync().ConfigureAwait(false);
-        Logger.Information("Application configured with MaxSessionCount {maxSessionCount} and MaxSubscriptionCount {maxSubscriptionCount}",
+        Logger.LogInformation("Application configured with MaxSessionCount {maxSessionCount} and MaxSubscriptionCount {maxSubscriptionCount}",
             ApplicationConfiguration.ServerConfiguration.MaxSessionCount,
             ApplicationConfiguration.ServerConfiguration.MaxSubscriptionCount);
 
