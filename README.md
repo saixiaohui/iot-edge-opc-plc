@@ -187,7 +187,7 @@ Simple Events defines four new event types. _SystemCycleStatusEventType_ is inhe
 _SystemCycleStartedEventType_, _SystemCycleAbortedEventType_, _SystemCycleFinishedEventType_ from _SystemCycleStatusEventType_.
 
 Every 3000 ms a new _SystemCycleStartedEventState_ is triggered. (The other event types are not used.)
-A _message_ is generated with a counter "The system cycle '\{counter}' has started." for each event.
+Two _messages_ are generated with a counter "The system cycle '\{counter}' has started." for each event, one has severity 1 and the other one severity 2.
 
 A structure of type _CycleStepDataType_ is added to _SystemCycleStartedEventState_ event. The values in that
 structure is hard coded to Name: Step 1 and Duration: 1000.
@@ -205,7 +205,7 @@ The alarms are of different types:
 - Silver - [NonExclusiveLevelAlarmType](https://reference.opcfoundation.org/v104/Core/ObjectTypes/NonExclusiveLevelAlarmType/)
 - OnlineState - [DialogConditionType](https://reference.opcfoundation.org/v104/Core/ObjectTypes/DialogConditionType/)
 
-All these alarms will update on a regular interval. It is also possible to _Acknowledge_, _Confirm_ and and add _Comment_ 
+All these alarms will update on a regular interval. It is also possible to _Acknowledge_, _Confirm_ and add _Comment_ 
 to them.
 
 This simulation also emits two types of system events: [_SystemEventType_](https://reference.opcfoundation.org/v104/Core/ObjectTypes/SystemEventType/)
