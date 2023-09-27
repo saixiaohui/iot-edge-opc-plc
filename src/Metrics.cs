@@ -135,17 +135,13 @@ public static class DiagnosticsConfig
 
     public static void AddPublishedCount(string sessionId, string subscriptionId, int dataPoints, int events)
     {
-        var dimensions = MergeWithBaseDimensions(
-                        new KeyValuePair<string, object>("session", sessionId),
-                        new KeyValuePair<string, object>("subscription", subscriptionId));
+        var dimensions = ConvertDictionaryToKeyVaultPairArray(BaseDimensions);
         PublishedCount.Add(1, dimensions);
         LogMetric(OPC_PLC_PUBLISHED_COUNT_METRIC, 1, dimensions);
 
         if (dataPoints > 0)
         {
             var dataPointsDimensions = MergeWithBaseDimensions(
-                        new KeyValuePair<string, object>("session", sessionId),
-                        new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "data_point"));
             PublishedCountWithType.Add(dataPoints, dataPointsDimensions);
             LogMetricAndType(OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC, dataPoints, "data_point", dataPointsDimensions);
@@ -154,8 +150,6 @@ public static class DiagnosticsConfig
         if (events > 0)
         {
             var eventsDimensions = MergeWithBaseDimensions(
-                        new KeyValuePair<string, object>("session", sessionId),
-                        new KeyValuePair<string, object>("subscription", subscriptionId),
                         new KeyValuePair<string, object>("type", "event"));
             PublishedCountWithType.Add(events, eventsDimensions);
             LogMetricAndType(OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC, events, "event", eventsDimensions);
