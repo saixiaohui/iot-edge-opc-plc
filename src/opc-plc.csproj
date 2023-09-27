@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
@@ -29,7 +29,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OpenTelemetry.Exporter.Geneva" Version="1.5.1" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.4.0" />
-    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Bindings.Https.Debug" Version="1.4.371.96" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Bindings.Https.Debug" Version="1.4.372.56" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.5.1" />
     <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.5.0-rc.1" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.5.1" />
@@ -39,8 +39,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration.Debug" Version="1.4.371.96" />
-    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server.Debug" Version="1.4.371.96" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration.Debug" Version="1.4.372.56" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server.Debug" Version="1.4.372.56" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="7.0.2" />
   </ItemGroup>
 
