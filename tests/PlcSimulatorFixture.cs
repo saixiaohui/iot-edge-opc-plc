@@ -185,7 +185,7 @@ public class PlcSimulatorFixture
     public void FireTimersWithPeriod(uint periodInMilliseconds, int numberOfTimes)
     {
         var matchedHandlers = GetTimerHandlersForPeriod(periodInMilliseconds);
-        matchedHandlers.Should().NotBeEmpty("expected Timer(s) to be setup with interval {0}ms", periodInMilliseconds);
+        matchedHandlers.Should().NotBeEmpty("expected Timer(s) to be setup with interval {0} ms", periodInMilliseconds);
 
         for (var i = 0; i < numberOfTimes; i++)
         {
@@ -200,14 +200,12 @@ public class PlcSimulatorFixture
     public List<Action> GetTimerHandlersForPeriod(uint periodInMilliseconds)
     {
         var matchedTimers = _timers.Where(t
-                => t.timer.Enabled
-                   && CloseTo(t.timer.Interval, periodInMilliseconds))
+                => t.timer.Enabled && CloseTo(t.timer.Interval, periodInMilliseconds))
             .Select(t => (Action)(() => t.handler(null, null)))
             .ToList();
 
         var matchedFastTimers = _fastTimers.Where(t
-                => t.timer.Enabled
-                   && CloseTo(t.timer.Interval, periodInMilliseconds))
+                => t.timer.Enabled && CloseTo(t.timer.Interval, periodInMilliseconds))
             .Select(t => (Action)(() => t.handler(null, null)))
             .ToList();
 
@@ -226,7 +224,7 @@ public class PlcSimulatorFixture
 
     private async Task<ApplicationConfiguration> GetConfigurationAsync()
     {
-        await _log.WriteLineAsync("Create an Application Configuration.");
+        await _log.WriteLineAsync("Create Application Configuration");
 
         var application = new ApplicationInstance
         {
@@ -278,9 +276,9 @@ public class PlcSimulatorFixture
         {
             try
             {
-                var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, false, 15000);
+                var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, useSecurity: false, discoverTimeout: 15000);
                 var endpointConfiguration = EndpointConfiguration.Create(_config);
-                return new ConfiguredEndpoint(null, endpoint, endpointConfiguration);
+                return new ConfiguredEndpoint(collection: null, endpoint, endpointConfiguration);
             }
             catch (ServiceResultException) when (sw.Elapsed < TimeSpan.FromSeconds(10))
             {
@@ -311,7 +309,7 @@ public class PlcSimulatorFixture
                 continue;
             }
 
-            return Program.PlcServer.GetEndpoints().First().EndpointUrl;
+            return Program.PlcServer.GetEndpoints()[0].EndpointUrl;
         }
     }
 }

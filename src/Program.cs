@@ -300,9 +300,7 @@ public static class Program
         Ready = true;
         Logger.LogInformation("PLC simulation started, press Ctrl+C to exit ...");
 
-        // wait for Ctrl-C
-
-        // allow canceling the connection process
+        // Wait for Ctrl-C to allow canceling the connection process.
         var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Console.CancelKeyPress += (_, eArgs) =>
         {
@@ -312,6 +310,7 @@ public static class Program
 
         while (!cancellationTokenSource.Token.WaitHandle.WaitOne(1000))
         {
+            // Wait for cancellation.
         }
 
         PlcSimulation.Stop();
