@@ -78,7 +78,6 @@ public static class DiagnosticsConfig
 
     private static readonly IDictionary<string, object> BaseDimensions = new Dictionary<string, object>
     {
-        { "host",       ROLE_INSTANCE ?? "host"         },
         { "app",        "opc-plc"                       },
         { "simid",      SIMULATION_ID ?? "simulation"   },
         { "cluster",    CLUSTER_NAME ?? "cluster"       },
