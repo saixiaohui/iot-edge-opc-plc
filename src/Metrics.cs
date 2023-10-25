@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
+
 using Microsoft.Extensions.Logging;
 
 public static class DiagnosticsConfig
@@ -17,6 +18,14 @@ public static class DiagnosticsConfig
     private const string OPC_PLC_PUBLISHED_COUNT_METRIC = "opc_plc_published_count";
     private const string OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC = "opc_plc_published_count_with_type";
     private const string OPC_PLC_TOTAL_ERRORS_METRIC = "opc_plc_total_errors";
+
+    private static string KUBERNETES_NODE
+    {
+        get
+        {
+            return Environment.GetEnvironmentVariable("KUBERNETES_NODE");
+        }
+    }
 
     private static string ROLE_INSTANCE
     {
@@ -78,15 +87,17 @@ public static class DiagnosticsConfig
 
     private static readonly IDictionary<string, object> BaseDimensions = new Dictionary<string, object>
     {
-        { "app",        "opc-plc"                       },
-        { "simid",      SIMULATION_ID ?? "simulation"   },
-        { "cluster",    CLUSTER_NAME ?? "cluster"       },
+        { "kubernetes_node",    KUBERNETES_NODE ?? "node"       },
+        { "role_instance",      ROLE_INSTANCE ?? "host"         },
+        { "app",                "opc-plc"                       },
+        { "simid",              SIMULATION_ID ?? "simulation"   },
+        { "cluster",            CLUSTER_NAME ?? "cluster"       },
     };
 
     public static readonly Meter Meter = new(ServiceName);
     private static ILogger logger;
 
-    private static readonly UpDownCounter<int> PodCount = Meter.CreateUpDownCounter<int>(OPC_PLC_POD_COUNT_METRIC);
+    // private static readonly UpDownCounter<int> PodCount = Meter.CreateUpDownCounter<int>(OPC_PLC_POD_COUNT_METRIC);
     private static readonly UpDownCounter<int> SessionCount = Meter.CreateUpDownCounter<int>(OPC_PLC_SESSION_COUNT_METRIC);
     private static readonly UpDownCounter<int> SubscriptionCount = Meter.CreateUpDownCounter<int>(OPC_PLC_SUBSCRIPTION_COUNT_METRIC);
     private static readonly UpDownCounter<int> MonitoredItemCount = Meter.CreateUpDownCounter<int>(OPC_PLC_MONITORED_ITEM_COUNT_METRIC);
@@ -94,16 +105,14 @@ public static class DiagnosticsConfig
     private static readonly Counter<int> PublishedCountWithType = Meter.CreateCounter<int>(OPC_PLC_PUBLISHED_COUNT_WITH_TYPE_METRIC);
     private static readonly Counter<int> TotalErrors = Meter.CreateCounter<int>(OPC_PLC_TOTAL_ERRORS_METRIC);
 
+    private static readonly ObservableGauge<int> PodCountGauge = Meter.CreateObservableGauge<int>(OPC_PLC_POD_COUNT_METRIC, () =>
+    {
+        return new Measurement<int>(1, ConvertDictionaryToKeyVaultPairArray(BaseDimensions));
+    });
+
     public static void SetLogger(ILogger logger)
     {
         DiagnosticsConfig.logger = logger;
-    }
-
-    public static void AddPodCount(int delta = 1)
-    {
-        var dimensions = ConvertDictionaryToKeyVaultPairArray(BaseDimensions);
-        PodCount.Add(delta, dimensions);
-        LogMetric(OPC_PLC_POD_COUNT_METRIC, delta, dimensions);
     }
 
     public static void AddSessionCount(string sessionId, int delta = 1)

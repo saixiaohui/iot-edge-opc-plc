@@ -35,7 +35,7 @@ public static class Extensions
     {
         builder.AddOpenTelemetry(loggerOptions =>
         {
-            var useGenevaLogging = true;    // TODO: add config
+            var useGenevaLogging = false;    // TODO: add config
             if (useGenevaLogging)
             {
                 loggerOptions.AddGenevaLogExporter(exporterOptions =>
