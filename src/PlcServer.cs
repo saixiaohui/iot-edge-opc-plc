@@ -6,7 +6,6 @@ using Opc.Ua.Server;
 using OpcPlc.CompanionSpecs.DI;
 using OpcPlc.DeterministicAlarms;
 using OpcPlc.Reference;
-using Serilog.Extensions.Logging;
 using SimpleEvents;
 using System;
 using System.Collections.Generic;
@@ -16,6 +15,8 @@ using System.Reflection;
 using System.Threading;
 
 using Microsoft.Extensions.Logging;
+
+using Meters = OpcPlc.DiagnosticsConfig;
 
 using static Program;
 
@@ -28,11 +29,12 @@ public partial class PlcServer : StandardServer
     public DeterministicAlarmsNodeManager DeterministicAlarmsNodeManager = null;
     public readonly TimeService TimeService;
 
-    private readonly ILogger logger = new SerilogLoggerFactory(Program.Logger).CreateLogger("PlcServer");
+    private readonly ILogger logger;
 
-    public PlcServer(TimeService timeService)
+    public PlcServer(TimeService timeService, ILogger logger)
     {
         TimeService = timeService;
+        this.logger = logger;
     }
 
     public override ResponseHeader CreateSession(
@@ -207,7 +209,7 @@ public partial class PlcServer : StandardServer
         {
             var responseHeader = base.Read(requestHeader, maxAge, timestampsToReturn, nodesToRead, out results, out diagnosticInfos);
 
-            Logger.Debug("{function} completed successfully.", nameof(Read));
+            Logger.LogDebug("{function} completed successfully.", nameof(Read));
 
             return responseHeader;
         }

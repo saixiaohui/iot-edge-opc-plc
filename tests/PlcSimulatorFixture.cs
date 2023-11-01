@@ -47,17 +47,17 @@ public class PlcSimulatorFixture
     /// Registry of mocked timers.
     /// </summary>
     private readonly ConcurrentBag<(ITimer timer, ElapsedEventHandler handler)> _timers
-        = new ConcurrentBag<(ITimer, ElapsedEventHandler)>();
+        = new();
 
     /// <summary>
     /// Registry of mocked fast timers.
     /// </summary>
     private readonly ConcurrentBag<(ITimer timer, FastTimerElapsedEventHandler handler)> _fastTimers
-        = new ConcurrentBag<(ITimer, FastTimerElapsedEventHandler)>();
+        = new();
 
     private Task _serverTask;
 
-    private readonly CancellationTokenSource _serverCancellationTokenSource = new CancellationTokenSource();
+    private readonly CancellationTokenSource _serverCancellationTokenSource = new();
 
     private ApplicationConfiguration _config;
 
@@ -79,9 +79,7 @@ public class PlcSimulatorFixture
     public async Task Start()
     {
         Reset();
-        Program.Logger = new LoggerConfiguration()
-            .WriteTo.NUnitOutput()
-            .CreateLogger();
+         
         _log = TestContext.Progress;
 
         var mock = new Mock<TimeService>();
@@ -120,19 +118,24 @@ public class PlcSimulatorFixture
             .Returns(() => _now);
 
         // The simulator program command line.
-        _serverTask = Task.Run(() => Program.MainAsync(
-                _args.Concat(
-                        new[]
-                        {
-                                "--autoaccept",
-                                $"--portnum={Port}",
-                                "--fn=25",
-                                "--fr=1",
-                                "--ft=uint"
-                        })
-                    .ToArray(),
-                _serverCancellationTokenSource.Token)
-            .GetAwaiter().GetResult());
+        _serverTask = Task.Run(() =>
+        {
+            Program.MainAsync(
+                    _args.Concat(
+                            new[]
+                            {
+                            "--autoaccept",
+                            $"--portnum={Port}",
+                            "--fn=25",
+                            "--fr=1",
+                            "--ft=uint"
+                            })
+                        .ToArray(),
+                    _serverCancellationTokenSource.Token)
+                .GetAwaiter().GetResult();
+
+            Program.Logger = Program.LoggerFactoryInstance.CreateLogger("PlcSimulatorFixture");
+        });
 
         string endpointUrl = WaitForServerUp();
         await _log.WriteAsync($"Found server at: {endpointUrl}");
@@ -182,7 +185,7 @@ public class PlcSimulatorFixture
     public void FireTimersWithPeriod(uint periodInMilliseconds, int numberOfTimes)
     {
         var matchedHandlers = GetTimerHandlersForPeriod(periodInMilliseconds);
-        matchedHandlers.Should().NotBeEmpty("expected Timer(s) to be setup with interval {0}ms", periodInMilliseconds);
+        matchedHandlers.Should().NotBeEmpty("expected Timer(s) to be setup with interval {0} ms", periodInMilliseconds);
 
         for (var i = 0; i < numberOfTimes; i++)
         {
@@ -197,14 +200,12 @@ public class PlcSimulatorFixture
     public List<Action> GetTimerHandlersForPeriod(uint periodInMilliseconds)
     {
         var matchedTimers = _timers.Where(t
-                => t.timer.Enabled
-                   && CloseTo(t.timer.Interval, periodInMilliseconds))
+                => t.timer.Enabled && CloseTo(t.timer.Interval, periodInMilliseconds))
             .Select(t => (Action)(() => t.handler(null, null)))
             .ToList();
 
         var matchedFastTimers = _fastTimers.Where(t
-                => t.timer.Enabled
-                   && CloseTo(t.timer.Interval, periodInMilliseconds))
+                => t.timer.Enabled && CloseTo(t.timer.Interval, periodInMilliseconds))
             .Select(t => (Action)(() => t.handler(null, null)))
             .ToList();
 
@@ -223,7 +224,7 @@ public class PlcSimulatorFixture
 
     private async Task<ApplicationConfiguration> GetConfigurationAsync()
     {
-        await _log.WriteLineAsync("Create an Application Configuration.");
+        await _log.WriteLineAsync("Create Application Configuration");
 
         var application = new ApplicationInstance
         {
@@ -275,9 +276,9 @@ public class PlcSimulatorFixture
         {
             try
             {
-                var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, false, 15000);
+                var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, useSecurity: false, discoverTimeout: 15000);
                 var endpointConfiguration = EndpointConfiguration.Create(_config);
-                return new ConfiguredEndpoint(null, endpoint, endpointConfiguration);
+                return new ConfiguredEndpoint(collection: null, endpoint, endpointConfiguration);
             }
             catch (ServiceResultException) when (sw.Elapsed < TimeSpan.FromSeconds(10))
             {
@@ -308,7 +309,7 @@ public class PlcSimulatorFixture
                 continue;
             }
 
-            return Program.PlcServer.GetEndpoints().First().EndpointUrl;
+            return Program.PlcServer.GetEndpoints()[0].EndpointUrl;
         }
     }
 }

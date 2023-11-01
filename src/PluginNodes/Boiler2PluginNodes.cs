@@ -1,5 +1,6 @@
 namespace OpcPlc.PluginNodes;
 
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.DI;
 using OpcPlc.Helpers;
@@ -232,7 +233,7 @@ public class Boiler2PluginNodes : IPluginNodes
     private ServiceResult SwitchOnCall(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments)
     {
         SetValue(_heaterStateNode, inputArguments.First());
-        Logger.Debug($"SwitchOnCall method called with argument: {inputArguments.First()}");
+        Logger.LogDebug($"SwitchOnCall method called with argument: {inputArguments.First()}");
 
         return ServiceResult.Good;
     }
@@ -245,30 +246,27 @@ public class Boiler2PluginNodes : IPluginNodes
         _offSpecEv = new DeviceHealthDiagnosticAlarmTypeState(parent: null);
         _maintenanceRequiredEv = new DeviceHealthDiagnosticAlarmTypeState(parent: null);
 
-        // Init the events
+        // Init the events.
         _failureEv.Initialize(_plcNodeManager.SystemContext,
-                    source: null,
-                    EventSeverity.Max,
-                    new LocalizedText($"Temperature is above overheat threshold!"));
+            source: _currentTempDegreesNode,
+            EventSeverity.Max,
+            new LocalizedText($"Temperature is above or equal to the overheat threshold!"));
 
         _checkFunctionEv.Initialize(_plcNodeManager.SystemContext,
-                    source: null,
-                    EventSeverity.Low,
-                    new LocalizedText($"Temperature is above target!"));
+            source: _currentTempDegreesNode,
+            EventSeverity.Low,
+            new LocalizedText($"Temperature is above target!"));
 
         _offSpecEv.Initialize(_plcNodeManager.SystemContext,
-                    source: null,
-                    EventSeverity.MediumLow,
-                    new LocalizedText($"Temperature is off spec!"));
+            source: _currentTempDegreesNode,
+            EventSeverity.MediumLow,
+            new LocalizedText($"Temperature is off spec!"));
 
         _maintenanceRequiredEv.Initialize(_plcNodeManager.SystemContext,
-                    source: null,
-                    EventSeverity.Medium,
-                    new LocalizedText($"Maintenance required!"));
+            source: null,
+            EventSeverity.Medium,
+            new LocalizedText($"Maintenance required!"));
 
-        _failureEv.SetChildValue(_plcNodeManager.SystemContext, Opc.Ua.BrowseNames.SourceName, value: "Overheated", copy: false);
-        _checkFunctionEv.SetChildValue(_plcNodeManager.SystemContext, Opc.Ua.BrowseNames.SourceName, value: "Check function", copy: false);
-        _offSpecEv.SetChildValue(_plcNodeManager.SystemContext, Opc.Ua.BrowseNames.SourceName, value: "Off spec", copy: false);
         _maintenanceRequiredEv.SetChildValue(_plcNodeManager.SystemContext, Opc.Ua.BrowseNames.SourceName, value: "Maintenance", copy: false);
     }
 

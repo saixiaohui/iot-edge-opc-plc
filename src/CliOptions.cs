@@ -1,5 +1,6 @@
 ﻿namespace OpcPlc;
 
+using Microsoft.Extensions.Logging;
 using Mono.Options;
 using Opc.Ua;
 using OpcPlc.Helpers;
@@ -246,7 +247,7 @@ public class CliOptions
         using var stringWriter = new StringWriter(sb);
         options.WriteOptionDescriptions(stringWriter);
 
-        Program.Logger.Information(sb.ToString());
+        Program.Logger.LogInformation(sb.ToString());
     }
 
     /// <summary>

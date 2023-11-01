@@ -1,5 +1,6 @@
 ﻿namespace OpcPlc.DeterministicAlarms;
 
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Server;
 using OpcPlc.DeterministicAlarms.Configuration;
@@ -12,17 +13,17 @@ using static OpcPlc.Program;
 
 public class DeterministicAlarmsNodeManager : CustomNodeManager2
 {
-    private SimBackendService _system;
-    private List<SimFolderState> _folders = new List<SimFolderState>();
+    private readonly SimBackendService _system;
+    private readonly List<SimFolderState> _folders = new();
     private uint _nodeIdCounter = 0;
     private List<NodeState> _rootNotifiers;
-    private IServerInternal _server;
-    private ServerSystemContext _defaultSystemContext;
-    private Dictionary<string, SimSourceNodeState> _sourceNodes = new Dictionary<string, SimSourceNodeState>();
-    private Configuration.Configuration _scriptconfiguration;
+    private readonly IServerInternal _server;
+    private readonly ServerSystemContext _defaultSystemContext;
+    private readonly Dictionary<string, SimSourceNodeState> _sourceNodes = new();
+    private readonly Configuration.Configuration _scriptconfiguration;
     private readonly TimeService _timeService;
     private Dictionary<string, string> _scriptAlarmToSources;
-    private string _scriptFileName;
+    private readonly string _scriptFileName;
 
     /// <summary>
     /// Initializes the node manager.
@@ -49,7 +50,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
         }
         catch (Exception ex)
         {
-            Logger.Error(ex, "Cannot read or decode deterministic alarm script file");
+            Logger.LogError(ex, "Cannot read or decode deterministic alarm script file");
         }
     }
 
@@ -115,12 +116,12 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
         try
         {
             VerifyScriptConfiguration(scriptConfiguration);
-            Logger.Information("Script starts executing");
+            Logger.LogInformation("Script starts executing");
             var scriptEngine = new ScriptEngine(scriptConfiguration.Script, OnScriptStepAvailable, _timeService);
         }
         catch (ScriptException ex)
         {
-            Logger.Error($"Script Engine Exception '{ex.Message}'\nSCRIPT WILL NOT START");
+            Logger.LogError($"Script Engine Exception '{ex.Message}'\nSCRIPT WILL NOT START");
             throw;
         }
     }
@@ -134,7 +135,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
     {
         if (step == null)
         {
-            Logger.Information("SCRIPT ENDED");
+            Logger.LogInformation("SCRIPT ENDED");
         }
         else
         {
@@ -199,16 +200,16 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
     {
         if (step.Event != null)
         {
-            Logger.Information($"({loopNumber}) -\t{step.Event.AlarmId}\t{step.Event.Reason}");
+            Logger.LogInformation($"({loopNumber}) -\t{step.Event.AlarmId}\t{step.Event.Reason}");
             foreach (var sc in step.Event.StateChanges)
             {
-                Logger.Information($"\t\t{sc.StateType} - {sc.State}");
+                Logger.LogInformation($"\t\t{sc.StateType} - {sc.State}");
             }
         }
 
         if (step.SleepInSeconds > 0)
         {
-            Logger.Information($"({loopNumber}) -\tSleep: {step.SleepInSeconds}");
+            Logger.LogInformation($"({loopNumber}) -\tSleep: {step.SleepInSeconds}");
         }
     }
 
@@ -227,14 +228,14 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
         TimestampsToReturn timestampsToReturn,
         IList<MonitoredItemCreateRequest> itemsToCreate,
         IList<ServiceResult> errors,
-        IList<MonitoringFilterResult> filterResults,
+        IList<MonitoringFilterResult> filterErrors,
         IList<IMonitoredItem> monitoredItems,
         ref long globalIdCounter)
     {
         ServerSystemContext systemContext = _defaultSystemContext.Copy(context);
         IDictionary<NodeId, NodeState> operationCache = new NodeIdDictionary<NodeState>();
-        List<NodeHandle> nodesToValidate = new List<NodeHandle>();
-        List<IMonitoredItem> createdItems = new List<IMonitoredItem>();
+        List<NodeHandle> nodesToValidate = new();
+        List<IMonitoredItem> createdItems = new();
 
         lock (Lock)
         {
@@ -261,7 +262,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
                 // owned by this node manager.
                 monitoredItemCreateRequest.Processed = true;
 
-                // must validate node in a seperate operation.
+                // must validate node in a separate operation.
                 errors[ii] = StatusCodes.BadNodeIdUnknown;
 
                 handle.Index = ii;
@@ -310,7 +311,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
             }
 
             // save any filter error details.
-            filterResults[handle.Index] = filterResult;
+            filterErrors[handle.Index] = filterResult;
 
             if (ServiceResult.IsBad(errors[handle.Index]))
             {
@@ -422,16 +423,11 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
         }
 
         // only objects or views can be subscribed to.
-        BaseObjectState instance = source as BaseObjectState;
 
-        if (instance == null || (instance.EventNotifier & EventNotifiers.SubscribeToEvents) == 0)
+        if ((source is not BaseObjectState instance || (instance.EventNotifier & EventNotifiers.SubscribeToEvents) == 0) &&
+            (source is not ViewState view || (view.EventNotifier & EventNotifiers.SubscribeToEvents) == 0))
         {
-            ViewState view = source as ViewState;
-
-            if (view == null || (view.EventNotifier & EventNotifiers.SubscribeToEvents) == 0)
-            {
-                return StatusCodes.BadNotSupported;
-            }
+            return StatusCodes.BadNotSupported;
         }
 
         // check for existing monitored node.
@@ -468,9 +464,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
     {
         lock (Lock)
         {
-            IList<IReference> references = null;
-
-            if (!externalReferences.TryGetValue(ObjectIds.Server, out references))
+            if (!externalReferences.TryGetValue(ObjectIds.Server, out IList<IReference> references))
             {
                 externalReferences[ObjectIds.Server] = references = new List<IReference>();
             }
@@ -516,8 +510,6 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
         OperationContext context,
         IList<IEventMonitoredItem> monitoredItems)
     {
-        ServerSystemContext serverSystemContext = SystemContext.Copy(context);
-
         foreach (MonitoredItem monitoredItem in monitoredItems)
         {
             if (monitoredItem == null)
@@ -525,8 +517,8 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
                 continue;
             }
 
-            List<IFilterTarget> events = new List<IFilterTarget>();
-            List<NodeState> nodesToRefresh = new List<NodeState>();
+            List<IFilterTarget> events = new();
+            List<NodeState> nodesToRefresh = new();
 
             lock (Lock)
             {
@@ -642,7 +634,7 @@ public class DeterministicAlarmsNodeManager : CustomNodeManager2
     /// </summary>
     protected override NodeStateCollection LoadPredefinedNodes(ISystemContext context)
     {
-        NodeStateCollection predefinedNodes = new NodeStateCollection();
+        NodeStateCollection predefinedNodes = new();
 
         return predefinedNodes;
     }
